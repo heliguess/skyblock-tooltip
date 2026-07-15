@@ -200,7 +200,7 @@ fieldset {
   margin: 0;
 }
 legend {
-  color: var(--text-dim);
+  color: var(--text);
   font-size: 11px;
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -209,7 +209,7 @@ legend {
 label.field-label {
   display: block;
   font-size: 12px;
-  color: var(--text-dim);
+  color: var(--text);
   margin-bottom: 4px;
 }
 input[type="text"], textarea, select {
