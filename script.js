@@ -28,6 +28,7 @@ const RARITIES = [
   { key:'SUPREME', label:'DIVINE', code:'b' },
   { key:'SPECIAL', label:'SPECIAL', code:'c' },
   { key:'VERY_SPECIAL', label:'VERY SPECIAL', code:'c' },
+  { key:'ULTIMATE', label:'ULTIMATE', code:'4' },
 ];
 
 RARITIES.forEach(r => {
