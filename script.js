@@ -182,10 +182,28 @@ function parseFormatted(text, defaultColor){
   return segments;
 }
 
-const OBF_CHARS = '!@#$%^&*abcdefghijklmnop0123456789';
-function obfuscate(str){
+let obfuscationTick = 0;
+const OBF_GROUPS = [
+  'i!.,:|I\'l;',
+  'tfk()[]{}<> ',
+  'abcdefghjnopqrstuvwxyzABCDEFGHJKLMNOPQRSTUVWXYZ0123456789@#$%^&*-+=?/',
+  'm~'
+];
+
+function obfuscate(str, seed = 0){
   let out = '';
-  for (let i=0;i<str.length;i++) out += OBF_CHARS[(str.charCodeAt(i)*7 + i*13) % OBF_CHARS.length];
+  for (let i = 0; i < str.length; i++) {
+    const char = str[i];
+    let group = OBF_GROUPS[2];
+    for (const g of OBF_GROUPS) {
+      if (g.includes(char)) {
+        group = g;
+        break;
+      }
+    }
+    const index = Math.abs(char.charCodeAt(0) * 31 + (obfuscationTick + i) * 17 + seed * 53) % group.length;
+    out += group[index];
+  }
   return out;
 }
 
@@ -214,21 +232,23 @@ function layoutSegment(ctx, display, bold){
   return { chars, width: w };
 }
 
-function measureLine(ctx, segments, config){
+function measureLine(ctx, segments, config, lineIdx = 0){
   let w = 0;
-  segments.forEach(seg => {
+  segments.forEach((seg, segIdx) => {
     ctx.font = fontFor(seg, config);
-    const display = seg.obfuscated ? obfuscate(seg.text) : seg.text;
+    const seed = lineIdx * 1000 + segIdx;
+    const display = seg.obfuscated ? obfuscate(seg.text, seed) : seg.text;
     w += layoutSegment(ctx, display, seg.bold).width;
   });
   return w;
 }
 
-function drawLine(ctx, segments, x, y, shadowOnly, config){
+function drawLine(ctx, segments, x, y, shadowOnly, config, lineIdx = 0){
   let cx = x;
-  segments.forEach(seg => {
+  segments.forEach((seg, segIdx) => {
     ctx.font = fontFor(seg, config);
-    const display = seg.obfuscated ? obfuscate(seg.text) : seg.text;
+    const seed = lineIdx * 1000 + segIdx;
+    const display = seg.obfuscated ? obfuscate(seg.text, seed) : seg.text;
     const layout = layoutSegment(ctx, display, seg.bold);
     ctx.fillStyle = shadowOnly ? shadowColor(seg.color) : seg.color;
     const dx = shadowOnly ? cx + 1 : cx;
@@ -266,12 +286,17 @@ function computeTooltipModel(){
   const loreRaw = document.getElementById('loreText').value.split('\n');
   const loreSegs = loreRaw.map(line => parseFormatted(line, '#AAAAAA'));
   const showFooter = document.getElementById('showFooter').checked;
+  const isRecombobulated = document.getElementById('isRecombobulated').checked;
   const itemType = document.getElementById('itemType').value.trim();
 
-  const footerText = itemType 
+  let footerText = itemType 
     ? `&${rarity.code}&l${rarity.label} ${itemType}` 
     : `&${rarity.code}&l${rarity.label}`;
 
+    if (isRecombobulated) {
+      footerText = `&${rarity.code}&l&ka&${rarity.code}&l ${rarity.label}${itemType ? ' ' + itemType : ''} &${rarity.code}&l&ka`;
+    }
+    
   const allLines = [nameSegs, ...loreSegs];
   if (showFooter){
     allLines.push(parseFormatted(footerText, rarity.color));
@@ -279,8 +304,8 @@ function computeTooltipModel(){
 
   let maxWidth = 0; 
   ctx.font = `${config.fontSize}px "${config.fontFamily}"`;
-  allLines.forEach(segs => { 
-    maxWidth = Math.max(maxWidth, measureLine(ctx, segs, config)); 
+  allLines.forEach((segs, lineIdx) => { 
+    maxWidth = Math.max(maxWidth, measureLine(ctx, segs, config, lineIdx)); 
   });
 
   const contentWidth = Math.max(maxWidth, 40);
@@ -325,8 +350,8 @@ function drawTooltip(targetCtx, model, scale){
   
   let y = config.padding - vOffset;
   allLines.forEach((segs, idx) => {
-    drawLine(targetCtx, segs, config.padding, y, true, config);
-    drawLine(targetCtx, segs, config.padding, y, false, config);
+    drawLine(targetCtx, segs, config.padding, y, true, config, idx);
+    drawLine(targetCtx, segs, config.padding, y, false, config, idx);
     y += config.lineHeight;
     
     if (idx === 0 && allLines.length > 1) {
@@ -336,18 +361,30 @@ function drawTooltip(targetCtx, model, scale){
   targetCtx.restore();
 }
 
-function render(){
-  const model = computeTooltipModel();
+let lastCw = 0, lastCh = 0, lastScale = 0;
+
+function renderWithModel(model){
   const { config, cw, ch } = model;
 
   const dpr = window.devicePixelRatio || 1;
   const previewScale = Math.ceil(Math.max(1, config.previewZoom * dpr));
-  canvas.width = cw * previewScale;
-  canvas.height = ch * previewScale;
-  canvas.style.width = (cw * config.previewZoom) + 'px';
-  canvas.style.height = (ch * config.previewZoom) + 'px';
+  
+  if (cw !== lastCw || ch !== lastCh || previewScale !== lastScale) {
+    canvas.width = cw * previewScale;
+    canvas.height = ch * previewScale;
+    canvas.style.width = (cw * config.previewZoom) + 'px';
+    canvas.style.height = (ch * config.previewZoom) + 'px';
+    lastCw = cw;
+    lastCh = ch;
+    lastScale = previewScale;
+  }
 
   drawTooltip(ctx, model, previewScale);
+}
+
+function render(){
+  const model = computeTooltipModel();
+  renderWithModel(model);
 }
 
 function populateConfigInputs() {
@@ -427,7 +464,7 @@ function updateSliderDisplays() {
 }
 
 const wireInputIds = [
-  'itemName', 'itemType', 'loreText', 'showFooter', 'pixelScale', 'previewZoom'
+  'itemName', 'itemType', 'loreText', 'showFooter', 'isRecombobulated', 'pixelScale', 'previewZoom'
 ];
 
 wireInputIds.forEach(id => {
@@ -459,6 +496,22 @@ document.getElementById('downloadBtn').addEventListener('click', () => {
   link.click();
 });
 
+let lastAnimateTime = 0;
+
+function animate(timestamp) {
+  requestAnimationFrame(animate);
+
+  if (timestamp - lastAnimateTime < 20) return;
+  lastAnimateTime = timestamp;
+
+  const model = computeTooltipModel();
+  const hasObfuscated = model.allLines.some(line => line.some(seg => seg.obfuscated));
+  if (hasObfuscated) {
+    obfuscationTick++;
+    renderWithModel(model);
+  }
+}
+
 (async function init() {
   updateSliderDisplays();
   populateConfigInputs()
@@ -476,4 +529,6 @@ document.getElementById('downloadBtn').addEventListener('click', () => {
       loadRarityAssets(r.key); 
     }
   }
+
+  requestAnimationFrame(animate);
 })();
