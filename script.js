@@ -186,25 +186,20 @@ function parseFormatted(text, defaultColor){
 
 let obfuscationTick = 0;
 
-const OBF_GROUPS = [
-  'k<> ',
-  'abcdefghnopqrsuvwxyzABCDEFGHJKLMNOPQRSTUVWXYZ023456789@#$&=',
-  'm~'
-];
+const OBF_CHARS = 'abcdeghnopqrsuwxyzABCDEFGHJKLMNOPQRSTUVWXYZ023456789#$&=m';
 
 function obfuscate(str, seed = 0){
   let out = '';
   for (let i = 0; i < str.length; i++) {
     const char = str[i];
-    let group = OBF_GROUPS[2];
-    for (const g of OBF_GROUPS) {
-      if (g.includes(char)) {
-        group = g;
-        break;
-      }
+    
+    if (char === ' ') {
+      out += ' ';
+      continue;
     }
-    const index = Math.abs(char.charCodeAt(0) * 31 + (obfuscationTick + i) * 17 + seed * 53) % group.length;
-    out += group[index];
+    
+    const index = Math.abs(char.charCodeAt(0) * 31 + (obfuscationTick + i) * 17 + seed * 53) % OBF_CHARS.length;
+    out += OBF_CHARS[index];
   }
   return out;
 }
@@ -392,18 +387,22 @@ function renderWithModel(model){
   drawTooltip(ctx, model, previewScale);
 }
 
-function updateAnimationButtonsVisibility() {
+function updateAnimationButtonsVisibility(model) {
+  if (!model) return;
+  
   const isRecombobulated = document.getElementById('isRecombobulated')?.checked;
+  const hasObfuscated = model.allLines.some(line => line.some(seg => seg.obfuscated));
+  
   const animGroup = document.getElementById('animationButtons');
   if (animGroup) {
-    animGroup.style.display = isRecombobulated ? 'flex' : 'none';
+    animGroup.style.display = (isRecombobulated || hasObfuscated) ? 'flex' : 'none';
   }
 }
 
 function render(){
   const model = computeTooltipModel();
   renderWithModel(model);
-  updateAnimationButtonsVisibility();
+  updateAnimationButtonsVisibility(model);
 }
 
 function populateConfigInputs() {
@@ -514,6 +513,30 @@ document.getElementById('downloadBtn').addEventListener('click', () => {
   link.download = `tooltip-${currentRarity.toLowerCase()}-${timestamp}.png`;
   link.href = exportCanvas.toDataURL('image/png');
   link.click();
+});
+
+document.getElementById('downloadStaticWebpBtn').addEventListener('click', () => {
+  const model = computeTooltipModel();
+  const { cw, ch } = model;
+  const pixelScale = parseInt(document.getElementById('pixelScale').value, 10);
+
+  const exportCanvas = document.createElement('canvas');
+  exportCanvas.width = cw * pixelScale;
+  exportCanvas.height = ch * pixelScale;
+  const exportCtx = exportCanvas.getContext('2d');
+  drawTooltip(exportCtx, model, pixelScale);
+
+  exportCanvas.toBlob((blob) => {
+    if (!blob) {
+      alert("WebP Export Failed: your browser may not support WebP encoding.");
+      return;
+    }
+    const link = document.createElement('a');
+    const timestamp = Date.now();
+    link.download = `tooltip-${currentRarity.toLowerCase()}-${timestamp}.webp`;
+    link.href = URL.createObjectURL(blob);
+    link.click();
+  }, 'image/webp', 0.92);
 });
 
 document.getElementById('downloadGifBtn').addEventListener('click', () => {
@@ -629,6 +652,125 @@ document.getElementById('downloadApngBtn').addEventListener('click', () => {
       btn.disabled = false;
     }
   }, 50);
+});
+
+let webpXMuxInstance = null;
+function getWebpXMux() {
+  if (!webpXMuxInstance) {
+    webpXMuxInstance = WebPXMux('https://cdn.jsdelivr.net/npm/webpxmux/dist/webpxmux.wasm');
+  }
+  return webpXMuxInstance;
+}
+
+function imageDataToPackedRgba(imgData) {
+  const { data, width, height } = imgData;
+  const pixelCount = width * height;
+  const packed = new Uint32Array(pixelCount);
+  for (let i = 0, p = 0; p < pixelCount; i += 4, p++) {
+    packed[p] = ((data[i] << 24) | (data[i + 1] << 16) | (data[i + 2] << 8) | data[i + 3]) >>> 0;
+  }
+  return packed;
+}
+
+document.getElementById('downloadWebpBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('downloadWebpBtn');
+  const originalText = btn.textContent;
+  btn.textContent = 'Encoding WebP...';
+  btn.disabled = true;
+
+  try {
+    const model = computeTooltipModel();
+    const { cw, ch } = model;
+    const pixelScale = parseInt(document.getElementById('pixelScale').value, 10);
+    const width = cw * pixelScale;
+    const height = ch * pixelScale;
+
+    const numFrames = 30;
+    const delayMs = 50;
+    const frames = [];
+
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = width;
+    tempCanvas.height = height;
+    const tempCtx = tempCanvas.getContext('2d');
+
+    const originalTick = obfuscationTick;
+
+    for (let f = 0; f < numFrames; f++) {
+      obfuscationTick++;
+      tempCtx.clearRect(0, 0, width, height);
+      drawTooltip(tempCtx, model, pixelScale);
+
+      const imgData = tempCtx.getImageData(0, 0, width, height);
+      frames.push({
+        duration: delayMs,
+        isKeyframe: false,
+        rgba: imageDataToPackedRgba(imgData)
+      });
+    }
+
+    obfuscationTick = originalTick;
+
+    const xMux = getWebpXMux();
+    await xMux.waitRuntime();
+
+    const animatedWebpBytes = await xMux.encodeFrames({
+      frameCount: numFrames,
+      width,
+      height,
+      loopCount: 0,
+      bgColor: 0x00000000,
+      frames
+    });
+
+    const blob = new Blob([animatedWebpBytes], { type: 'image/webp' });
+
+    const link = document.createElement('a');
+    const timestamp = Date.now();
+    link.download = `tooltip-${currentRarity.toLowerCase()}-${timestamp}.webp`;
+    link.href = URL.createObjectURL(blob);
+    link.click();
+  } catch (err) {
+    console.error(err);
+    alert("Animated WebP Export Failed: " + err.message);
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+});
+
+
+let hasWarnedScale = false;
+
+function scaleWarning() {
+  if (hasWarnedScale) return;
+  const isRecombobulatedEl = document.getElementById('isRecombobulated');
+  const pixelScaleEl = document.getElementById('pixelScale');
+  
+  if (isRecombobulatedEl && pixelScaleEl) {
+    const isRecombobulated = isRecombobulatedEl.checked;
+    const pixelScale = parseInt(pixelScaleEl.value, 10);
+    
+    if (isRecombobulated && pixelScale > 4) {
+      hasWarnedScale = true;
+      alert("Warning: Exporting animated tooltips as GIF or APNG at resolutions above 4x may freeze or even crash your browser.");
+    }
+  }
+}
+
+wireInputIds.forEach(id => {
+  const el = document.getElementById(id);
+  if (el) {
+    const handler = () => {
+      if (id === 'isRecombobulated' || id === 'pixelScale') {
+        scaleWarning();
+      }
+      updateSliderDisplays();
+      render();
+    };
+    el.addEventListener('input', handler);
+    el.addEventListener('change', handler);
+  }
 });
 
 let lastAnimateTime = 0;

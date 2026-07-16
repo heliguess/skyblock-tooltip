@@ -207,15 +207,39 @@ select:focus {
 .download-group {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 16px;
   width: 100%;
   max-width: 320px;
 }
 
-#animationButtons {
+.download-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.download-section#animationButtons {
   display: none;
+}
+
+.download-section-label {
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  text-align: center;
+}
+
+.download-row {
+  display: flex;
+  justify-content: center;
   gap: 10px;
   width: 100%;
+}
+
+.download-row .download-btn {
+  flex: 0 0 calc((100% - 20px) / 3);
 }
 
 .download-btn {
