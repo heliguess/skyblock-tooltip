@@ -12,7 +12,13 @@
     <div class="preview-stage">
       <canvas id="tooltipCanvas"></canvas>
     </div>
-    <button class="download-btn" id="downloadBtn">Download PNG</button>
+    <div class="download-group">
+      <button class="download-btn" id="downloadBtn">Download PNG</button>
+      <div id="animationButtons">
+        <button class="download-btn" id="downloadGifBtn" style="flex: 1;">Download GIF</button>
+        <button class="download-btn" id="downloadApngBtn" style="flex: 1;">Download APNG</button>
+      </div>
+    </div>
   </div>
 
   <div class="controls-col">
@@ -41,7 +47,7 @@
           <label>Border Src (px)</label>
           <input type="number" id="cfgSourceBorderPx" min="1" max="100" step="1">
         </div>
-<div class="config-row">
+        <div class="config-row">
           <label>Text Gap (px)</label>
           <input type="number" id="cfgTextGap" min="0" max="50" step="1">
         </div>
@@ -112,7 +118,7 @@
         <select id="pixelScale">
           <option value="1">1x</option>
           <option value="2">2x</option>
-          <option value="3"selected>3x</option>
+          <option value="3" selected>3x</option>
           <option value="4">4x</option>
         </select>
       </div>
@@ -120,6 +126,9 @@
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gifshot/0.3.2/gifshot.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/1.0.11/pako.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/photopea/UPNG.js/UPNG.js"></script>
 <script src="script.js"></script>
 </body>
 </html>

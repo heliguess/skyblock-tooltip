@@ -181,6 +181,18 @@ html, body {
   image-rendering: pixelated;
   flex-shrink: 0;
 }
+.download-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 320px;
+}
+#animationButtons {
+  display: none;
+  gap: 10px;
+  width: 100%;
+}
 .download-btn {
   background: var(--accent);
   color: #1a1522;
