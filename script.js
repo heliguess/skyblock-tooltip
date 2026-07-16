@@ -280,7 +280,11 @@ function computeTooltipModel(){
   const config = { ...LAYOUT_CONFIG, previewZoom: getPreviewZoom() };
   const rarity = RARITIES.find(r => r.key === currentRarity);
   const nameSegs = parseFormatted(document.getElementById('itemName').value, rarity.color);
-  const loreRaw = document.getElementById('loreText').value.split('\n');
+  let loreRaw = document.getElementById('loreText').value.split('\n');
+  const autoWrap = document.getElementById('autoWrapLore')?.checked;
+  if (autoWrap) {
+    loreRaw = loreRaw.flatMap(line => wrapLine(line, 35));
+  }
   const loreSegs = loreRaw.map(line => parseFormatted(line, '#AAAAAA'));
   const showFooter = document.getElementById('showFooter').checked;
   const isRecombobulated = document.getElementById('isRecombobulated').checked;
@@ -482,7 +486,7 @@ function updateSliderDisplays() {
 }
 
 const wireInputIds = [
-  'itemName', 'itemType', 'loreText', 'showFooter', 'isRecombobulated', 'pixelScale', 'previewZoom'
+  'itemName', 'itemType', 'loreText', 'showFooter', 'isRecombobulated', 'autoWrapLore', 'pixelScale', 'previewZoom'
 ];
 
 wireInputIds.forEach(id => {
@@ -739,6 +743,60 @@ document.getElementById('downloadWebpBtn').addEventListener('click', async () =>
   }
 });
 
+function wrapLine(line, maxLen = 35) {
+  if (line.length === 0) {
+    return [''];
+  }
+
+  const words = line.split(' ');
+  const wrappedLines = [];
+  let currentLine = '';
+  let currentLineCleanLength = 0;
+  
+  const formatRegex = /&[0-9a-fk-or]/gi;
+  let activeFormatting = '';
+
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    const cleanWord = word.replace(formatRegex, '');
+    
+    const matches = word.match(formatRegex);
+    if (matches) {
+      matches.forEach(code => {
+        if (code.toLowerCase() === '&r') {
+          activeFormatting = ''; 
+        } else {
+          if (/[0-9a-f]/i.test(code[1])) {
+            activeFormatting = code;
+          } else {
+            activeFormatting += code;
+          }
+        }
+      });
+    }
+
+    const spaceAddition = currentLineCleanLength > 0 ? 1 : 0;
+    
+    if (currentLineCleanLength + spaceAddition + cleanWord.length > maxLen && currentLineCleanLength > 0) {
+      wrappedLines.push(currentLine);
+      currentLine = activeFormatting + word;
+      currentLineCleanLength = cleanWord.length;
+    } else {
+      if (currentLineCleanLength === 0) {
+        currentLine = word;
+      } else {
+        currentLine += ' ' + word;
+      }
+      currentLineCleanLength += spaceAddition + cleanWord.length;
+    }
+  }
+  
+  if (currentLine) {
+    wrappedLines.push(currentLine);
+  }
+  
+  return wrappedLines;
+}
 
 let hasWarnedScale = false;
 
