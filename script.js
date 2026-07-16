@@ -510,7 +510,8 @@ document.getElementById('downloadBtn').addEventListener('click', () => {
   drawTooltip(exportCtx, model, pixelScale);
 
   const link = document.createElement('a');
-  link.download = `tooltip-${currentRarity.toLowerCase()}.png`;
+  const timestamp = Date.now();
+  link.download = `tooltip-${currentRarity.toLowerCase()}-${timestamp}.png`;
   link.href = exportCanvas.toDataURL('image/png');
   link.click();
 });
@@ -559,7 +560,8 @@ document.getElementById('downloadGifBtn').addEventListener('click', () => {
 
     if (!obj.error) {
       const link = document.createElement('a');
-      link.download = `tooltip-${currentRarity.toLowerCase()}.gif`;
+      const timestamp = Date.now();
+      link.download = `tooltip-${currentRarity.toLowerCase()}-${timestamp}.gif`;
       link.href = obj.image;
       link.click();
     } else {
@@ -615,7 +617,8 @@ document.getElementById('downloadApngBtn').addEventListener('click', () => {
       const blob = new Blob([apngBuffer], { type: 'image/png' });
 
       const link = document.createElement('a');
-      link.download = `tooltip-${currentRarity.toLowerCase()}.apng`;
+      const timestamp = Date.now();
+      link.download = `tooltip-${currentRarity.toLowerCase()}-${timestamp}.apng`;
       link.href = URL.createObjectURL(blob);
       link.click();
     } catch (err) {
