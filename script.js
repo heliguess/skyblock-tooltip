@@ -847,6 +847,341 @@ function animate(timestamp) {
   }
 }
 
+
+function flattenComponent(comp, parentState = { color: null, bold: false, italic: false, underlined: false, strikethrough: false, obfuscated: false }) {
+  if (comp === null || comp === undefined) return [];
+
+  if (Array.isArray(comp)) {
+    let segments = [];
+    comp.forEach(child => {
+      segments = segments.concat(flattenComponent(child, parentState));
+    });
+    return segments;
+  }
+
+  let state = { ...parentState };
+  if (typeof comp === 'object') {
+    if (comp.color !== undefined) state.color = comp.color;
+    if (comp.bold !== undefined) state.bold = comp.bold;
+    if (comp.italic !== undefined) state.italic = comp.italic;
+    if (comp.underlined !== undefined) state.underlined = comp.underlined;
+    if (comp.strikethrough !== undefined) state.strikethrough = comp.strikethrough;
+    if (comp.obfuscated !== undefined) state.obfuscated = comp.obfuscated;
+  }
+
+  let segments = [];
+  if (typeof comp === 'string' || typeof comp === 'number' || typeof comp === 'boolean') {
+    segments.push({ text: String(comp), state: { ...state } });
+  } else if (typeof comp === 'object') {
+    if (comp.text !== undefined && comp.text !== null) {
+      segments.push({ text: String(comp.text), state: { ...state } });
+    }
+    if (Array.isArray(comp.extra)) {
+      comp.extra.forEach(child => {
+        segments = segments.concat(flattenComponent(child, state));
+      });
+    }
+  }
+  return segments;
+}
+
+function segmentsToAmpersandString(segments) {
+  const mcColorToCode = {
+    'black': '0', 'dark_blue': '1', 'dark_green': '2', 'dark_aqua': '3',
+    'dark_red': '4', 'dark_purple': '5', 'gold': '6', 'gray': '7',
+    'dark_gray': '8', 'blue': '9', 'green': 'a', 'aqua': 'b',
+    'red': 'c', 'light_purple': 'd', 'yellow': 'e', 'white': 'f'
+  };
+
+  let out = '';
+  segments.forEach(seg => {
+    if (!seg.text) return;
+    let prefix = '';
+    if (seg.state.color && mcColorToCode[seg.state.color]) {
+      prefix += '&' + mcColorToCode[seg.state.color];
+    }
+    if (seg.state.bold) prefix += '&l';
+    if (seg.state.italic) prefix += '&o';
+    if (seg.state.underlined) prefix += '&n';
+    if (seg.state.strikethrough) prefix += '&m';
+    if (seg.state.obfuscated) prefix += '&k';
+    
+    out += prefix + seg.text.replace(/§/g, '&');
+  });
+  return out;
+}
+
+function parseSNBT(str) {
+  let i = 0;
+  const n = str.length;
+
+  const skipWs = () => { while (i < n && /\s/.test(str[i])) i++; };
+
+  function parseValue() {
+    skipWs();
+    const ch = str[i];
+    if (ch === '{') return parseCompound();
+    if (ch === '[') return parseList();
+    if (ch === '"' || ch === "'") return parseQuoted();
+    return parseBare();
+  }
+
+  function parseCompound() {
+    i++;
+    const obj = {};
+    skipWs();
+    if (str[i] === '}') { i++; return obj; }
+    while (true) {
+      skipWs();
+      const key = parseKey();
+      skipWs();
+      if (str[i] !== ':') throw new Error(`Expected ':' at position ${i}`);
+      i++;
+      obj[key] = parseValue();
+      skipWs();
+      if (str[i] === ',') { i++; continue; }
+      if (str[i] === '}') { i++; break; }
+      throw new Error(`Expected ',' or '}' at position ${i}`);
+    }
+    return obj;
+  }
+
+  function parseKey() {
+    skipWs();
+    if (str[i] === '"' || str[i] === "'") return parseQuoted();
+    const start = i;
+    while (i < n && !/[\s:,}\]]/.test(str[i])) i++;
+    if (i === start) throw new Error(`Expected key at position ${i}`);
+    return str.slice(start, i);
+  }
+
+  function parseList() {
+    i++;
+    skipWs();
+    if (/^[BILbil];/.test(str.slice(i, i + 2))) i += 2;
+    const arr = [];
+    skipWs();
+    if (str[i] === ']') { i++; return arr; }
+    while (true) {
+      arr.push(parseValue());
+      skipWs();
+      if (str[i] === ',') { i++; skipWs(); continue; }
+      if (str[i] === ']') { i++; break; }
+      throw new Error(`Expected ',' or ']' at position ${i}`);
+    }
+    return arr;
+  }
+
+  function parseQuoted() {
+    const quote = str[i];
+    i++;
+    let out = '';
+    while (i < n && str[i] !== quote) {
+      if (str[i] === '\\' && i + 1 < n) {
+        if (str[i + 1] === 'u' && /^[0-9a-fA-F]{4}$/.test(str.slice(i + 2, i + 6))) {
+          out += String.fromCharCode(parseInt(str.slice(i + 2, i + 6), 16));
+          i += 6;
+        } else {
+          out += str[i + 1];
+          i += 2;
+        }
+      } else {
+        out += str[i];
+        i++;
+      }
+    }
+    i++;
+    return out;
+  }
+
+  function parseBare() {
+    const start = i;
+    while (i < n && !/[\s,{}\[\]:]/.test(str[i])) i++;
+    if (i === start) throw new Error(`Unexpected character at position ${i}: '${str[i]}'`);
+    return convertBareToken(str.slice(start, i));
+  }
+
+  function convertBareToken(token) {
+    if (/^true$/i.test(token)) return true;
+    if (/^false$/i.test(token)) return false;
+    const m = /^(-?\d+\.?\d*(?:[eE][-+]?\d+)?)[bBsSlLfFdD]?$/.exec(token);
+    if (m) return parseFloat(m[1]);
+    return token;
+  }
+
+  return parseValue();
+}
+
+function importFromJson(jsonString) {
+  try {
+    const parseOne = (str) => {
+      try { return JSON.parse(str); } catch (e) { return parseSNBT(str); }
+    };
+
+    let rawName = '';
+    let rawLore = null;
+    let singleObjectError = null;
+
+    try {
+      let cleanedInput = jsonString.trim();
+      const firstBrace = cleanedInput.indexOf('{');
+      const lastBrace = cleanedInput.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1) {
+        cleanedInput = cleanedInput.substring(firstBrace, lastBrace + 1);
+      }
+      const data = parseOne(cleanedInput);
+      const components = (data && data.components) || data;
+      const candidateName = components['minecraft:custom_name'] ?? components['custom_name'];
+      const candidateLore = components['minecraft:lore'] || components['lore'];
+      if (candidateName !== undefined) rawName = candidateName;
+      if (Array.isArray(candidateLore)) rawLore = candidateLore;
+    } catch (err) {
+      singleObjectError = err;
+    }
+
+    if (!rawLore) {
+      const lines = jsonString.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      if (lines.length >= 2) {
+        try {
+          const parsedLines = lines.map(parseOne);
+          rawName = parsedLines[0];
+          rawLore = parsedLines.slice(1);
+        } catch (err) {
+        }
+      }
+    }
+
+    if (!rawLore) {
+      throw singleObjectError || new Error("Could not find lore data.");
+    }
+
+    const name = segmentsToAmpersandString(flattenComponent(rawName));
+    const loreLines = rawLore.map(line => segmentsToAmpersandString(flattenComponent(line)));
+    
+    let detectedRarityKey = 'COMMON';
+    let detectedItemType = '';
+    let isRecombobulated = false;
+    let finalLoreLines = [...loreLines];
+    
+    if (loreLines.length > 0) {
+      const lastLine = loreLines[loreLines.length - 1];
+      
+      isRecombobulated = lastLine.includes('&k');
+      
+      const cleanLine = lastLine.replace(/&[0-9a-fk-or]/gi, '').trim();
+      
+      const sortedRarities = [...RARITIES].sort((a, b) => b.label.length - a.label.length);
+      let matchedRarity = null;
+      for (const r of sortedRarities) {
+        if (cleanLine.includes(r.label)) {
+          matchedRarity = r;
+          break;
+        }
+      }
+      
+      if (matchedRarity) {
+        detectedRarityKey = matchedRarity.key;
+        
+        const idx = cleanLine.indexOf(matchedRarity.label);
+        let typePart = cleanLine.substring(idx + matchedRarity.label.length).trim();
+        
+        if (isRecombobulated) {
+          typePart = typePart.replace(/\s+.$/, '').trim();
+        }
+        detectedItemType = typePart;
+        
+        finalLoreLines.pop();
+      }
+    }
+    
+    const nameInput = document.getElementById('itemName');
+    if (nameInput) nameInput.value = name;
+    
+    const loreInput = document.getElementById('loreText');
+    if (loreInput) loreInput.value = finalLoreLines.join('\n');
+    
+    const typeInput = document.getElementById('itemType');
+    if (typeInput) typeInput.value = detectedItemType;
+    
+    const recombobulatedCheck = document.getElementById('isRecombobulated');
+    if (recombobulatedCheck) recombobulatedCheck.checked = isRecombobulated;
+    
+    const showFooterCheck = document.getElementById('showFooter');
+    if (showFooterCheck) showFooterCheck.checked = true;
+    
+    const buttons = document.querySelectorAll('.rarity-btn');
+    const rarityObj = RARITIES.find(r => r.key === detectedRarityKey);
+    if (rarityObj) {
+      buttons.forEach(btn => {
+        if (btn.textContent === rarityObj.label) {
+          btn.click();
+        }
+      });
+    } else {
+      render();
+    }
+    
+    return true;
+  } catch (err) {
+    console.error("Failed to parse item data:", err);
+    alert("Failed to import: Please verify that it's valid JSON or SNBT, or DM @helicoptero on discord.\n\nError: " + err.message);
+    return false;
+  }
+}
+
+window.importFromJson = importFromJson;
+
+const openImportBtn = document.getElementById('openImportBtn');
+const importModal = document.getElementById('importModal');
+const closeImportBtn = document.getElementById('closeImportBtn');
+const cancelImportBtn = document.getElementById('cancelImportBtn');
+const confirmImportBtn = document.getElementById('confirmImportBtn');
+const importJsonTextarea = document.getElementById('importJsonTextarea');
+
+if (openImportBtn && importModal) {
+  openImportBtn.addEventListener('click', () => {
+    importModal.classList.add('show');
+  });
+}
+
+const closeModal = () => {
+  if (importModal) {
+    importModal.classList.remove('show');
+  }
+};
+
+if (closeImportBtn) {
+  closeImportBtn.addEventListener('click', closeModal);
+}
+
+if (cancelImportBtn) {
+  cancelImportBtn.addEventListener('click', closeModal);
+}
+
+if (importModal) {
+  importModal.addEventListener('click', (e) => {
+    if (e.target === importModal) {
+      closeModal();
+    }
+  });
+}
+
+if (confirmImportBtn && importJsonTextarea) {
+  confirmImportBtn.addEventListener('click', () => {
+    const jsonString = importJsonTextarea.value;
+    if (!jsonString.trim()) {
+      alert("Please paste your JSON.");
+      return;
+    }
+    
+    const success = importFromJson(jsonString);
+    if (success) {
+      importJsonTextarea.value = '';
+      closeModal();
+    }
+  });
+}
+
 (async function init() {
   updateSliderDisplays();
   populateConfigInputs()

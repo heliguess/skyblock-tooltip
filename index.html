@@ -114,6 +114,9 @@
           NOTE: While Hypixel uses this length for most tooltips, they have some exceptions (mostly abilities and shorter tooltips), so this option should mainly be used as a guideline.
         </span>
       </div>
+      <button id="openImportBtn" class="btn-secondary">
+        Import from Item JSON
+      </button>
     </fieldset>
 
     <fieldset>
@@ -144,6 +147,27 @@
         </select>
       </div>
     </fieldset>
+  </div>
+</div>
+
+
+<div id="importModal" class="modal-overlay">
+  <div class="modal-content">
+    <div class="modal-header">
+      <span class="modal-title">Import from Item Stack</span>
+      <button id="closeImportBtn" class="modal-close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p>
+        Paste a Minecraft item stack or components object below, in JSON or SNBT.<br>
+        If you have any <a href="https://modrinth.com/organization/meowdding" target="_blank">Meowdding</a> mod you can obtain this by doing <strong>/sbapi copy item</strong>.
+      </p>
+      <textarea id="importJsonTextarea" placeholder='{ id: "minecraft:diamond_sword", components: { ... } }'></textarea>
+    </div>
+    <div class="modal-footer">
+      <button id="cancelImportBtn" class="btn-secondary">Cancel</button>
+      <button id="confirmImportBtn" class="btn-primary">Import Item</button>
+    </div>
   </div>
 </div>
 
