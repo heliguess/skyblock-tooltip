@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>Skyblock Tooltip Maker</title>
 <link rel="stylesheet" href="style.css">
+<link rel="icon" type="image/x-icon" href="./assets/favicon.png">
 </head>
 <body>
 
@@ -36,6 +37,16 @@
       <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="3"></circle>
         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      </svg>
+    </button>
+
+    <button class="cog-btn colors-btn" id="colorsBtn" title="Color Tag Reference">
+      <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="13.5" cy="6.5" r=".5" fill="currentColor"></circle>
+        <circle cx="17.5" cy="10.5" r=".5" fill="currentColor"></circle>
+        <circle cx="8.5" cy="7.5" r=".5" fill="currentColor"></circle>
+        <circle cx="6.5" cy="12.5" r=".5" fill="currentColor"></circle>
+        <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2Z"></path>
       </svg>
     </button>
 
@@ -76,6 +87,44 @@
       </div>
       <button id="resetConfigBtn" class="reset-cfg-btn">Reset to Default</button>
     </div>
+
+    <div class="config-panel colors-panel" id="colorsPanel">
+      <div class="config-panel-header">
+        <span class="config-panel-title">Tags</span>
+        <button id="closeColorsBtn" class="close-config-btn">&times;</button>
+      </div>
+      <div class="colors-list">
+        <div class="color-row"><span class="color-swatch" style="background:#000000;"></span><span class="color-code">&0</span><span class="color-tag">&lt;black&gt;</span><span class="color-name">#000000</span></div>
+        <div class="color-row"><span class="color-swatch" style="background:#353FCE;"></span><span class="color-code">&1</span><span class="color-tag">&lt;dark_blue&gt;</span><span class="color-name">#353FCE</span></div>
+        <div class="color-row"><span class="color-swatch" style="background:#00AA00;"></span><span class="color-code">&2</span><span class="color-tag">&lt;dark_green&gt;</span><span class="color-name">#00AA00</span></div>
+        <div class="color-row"><span class="color-swatch" style="background:#00aaaa;"></span><span class="color-code">&3</span><span class="color-tag">&lt;dark_aqua&gt;</span><span class="color-name">#00aaaa</span></div>
+        <div class="color-row"><span class="color-swatch" style="background:#D13228;"></span><span class="color-code">&4</span><span class="color-tag">&lt;dark_red&gt;</span><span class="color-name">#D13228</span></div>
+        <div class="color-row"><span class="color-swatch" style="background:#A335EE;"></span><span class="color-code">&5</span><span class="color-tag">&lt;dark_purple&gt;</span><span class="color-name">#A335EE</span></div>
+        <div class="color-row"><span class="color-swatch" style="background:#FF9000;"></span><span class="color-code">&6</span><span class="color-tag">&lt;gold&gt;</span><span class="color-name">#FF9000</span></div>
+        <div class="color-row"><span class="color-swatch" style="background:#A8BFD2;"></span><span class="color-code">&7</span><span class="color-tag">&lt;gray&gt;</span><span class="color-name">#A8BFD2</span></div>
+        <div class="color-row"><span class="color-swatch" style="background:#707592;"></span><span class="color-code">&8</span><span class="color-tag">&lt;dark_gray&gt;</span><span class="color-name">#707592</span></div>
+        <div class="color-row"><span class="color-swatch" style="background:#459bff;"></span><span class="color-code">&9</span><span class="color-tag">&lt;blue&gt;</span><span class="color-name">#459bff</span></div>
+        <div class="color-row"><span class="color-swatch" style="background:#55FF55;"></span><span class="color-code">&a</span><span class="color-tag">&lt;green&gt;</span><span class="color-name">#55FF55</span></div>
+        <div class="color-row"><span class="color-swatch" style="background:#55FFFF;"></span><span class="color-code">&b</span><span class="color-tag">&lt;aqua&gt;</span><span class="color-name">#55FFFF</span></div>
+        <div class="color-row"><span class="color-swatch" style="background:#FF5555;"></span><span class="color-code">&c</span><span class="color-tag">&lt;red&gt;</span><span class="color-name">#FF5555</span></div>
+        <div class="color-row"><span class="color-swatch" style="background:#FF55FF;"></span><span class="color-code">&d</span><span class="color-tag">&lt;light_purple&gt;</span><span class="color-name">#FF55FF</span></div>
+        <div class="color-row"><span class="color-swatch" style="background:#FFDE2F;"></span><span class="color-code">&e</span><span class="color-tag">&lt;yellow&gt;</span><span class="color-name">#FFDE2F</span></div>
+        <div class="color-row"><span class="color-swatch" style="background:#FFFFFF;"></span><span class="color-code">&f</span><span class="color-tag">&lt;white&gt;</span><span class="color-name">#FFFFFF</span></div>
+      </div>
+      <div class="colors-list">
+        <div class="color-row"><span class="color-code">&l</span><span class="color-tag">&lt;bold&gt; &lt;b&gt;</span><span class="color-name" style="font-weight:bold;">Bold</span></div>
+        <div class="color-row"><span class="color-code">&o</span><span class="color-tag">&lt;italic&gt; &lt;i&gt;</span><span class="color-name" style="font-style:italic;">Italic</span></div>
+        <div class="color-row"><span class="color-code">&n</span><span class="color-tag">&lt;underline&gt;</span><span class="color-name" style="text-decoration:underline;">Underline</span></div>
+        <div class="color-row"><span class="color-code">&m</span><span class="color-tag">&lt;strikethrough&gt;</span><span class="color-name" style="text-decoration:line-through;">Strikethrough</span></div>
+        <div class="color-row"><span class="color-code">&k</span><span class="color-tag">&lt;obfuscated&gt; &lt;obfus&gt;</span><span class="color-name" id="obfuscatedPreview">Obfuscated</span></div>
+        <div class="color-row"><span class="color-code">&r</span><span class="color-tag">&lt;reset&gt;</span></div>
+      </div>
+
+      <div class="colors-hint">
+        <code>&lt;color #RRGGBB&gt;</code> for custom colors!
+      </div>
+    </div>
+
     <fieldset>
       <legend>Item</legend>
       <div class="row">

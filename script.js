@@ -4,7 +4,112 @@ const COLOR_CODES = {
   '8':'#707592','9':'#459bff','a':'#55FF55','b':'#55FFFF',
   'c':'#FF5555','d':'#FF55FF','e':'#FFDE2F','f':'#FFFFFF'
 };
-const FORMAT_CODES = ['l','o','n','m','k'];
+
+const FORMAT_FLAG_CODES = {
+  bold: 'l', italic: 'o', underline: 'n', strikethrough: 'm', obfuscated: 'k'
+};
+
+const FORMAT_FLAG_ALIASES = {
+  b: 'bold', i: 'italic', obfus: "obfuscated"
+};
+const FORMAT_CODES = Object.values(FORMAT_FLAG_CODES);
+
+const TAG_COLOR_CODES = {
+  black: '0', dark_blue: '1', dark_green: '2',
+  dark_aqua: '3', dark_red: '4', dark_purple: '5', gold: '6',
+  gray: '7', grey: '7', dark_gray: '8', dark_grey: '8', blue: '9',
+  green: 'a', aqua: 'b', red: 'c', light_purple: 'd', pink: 'd',
+  yellow: 'e', white: 'f'
+};
+
+function convertTagsToCodes(text){
+  if (text.indexOf('<') === -1) return text;
+
+  const tagRegex = /<\/?\s*([a-zA-Z_]+)([^<>]*)>/g;
+  let out = '';
+  let lastIndex = 0;
+  let state = { color: null, bold: false, italic: false, underline: false, strikethrough: false, obfuscated: false };
+  const stack = [];
+
+  const emitSync = () => {
+    out += state.color ? ('&' + state.color) : '&r';
+    ['bold','italic','underline','strikethrough','obfuscated'].forEach(flag => {
+      if (state[flag]) out += '&' + FORMAT_FLAG_CODES[flag];
+    });
+  };
+
+  let match;
+  while ((match = tagRegex.exec(text)) !== null){
+    out += text.slice(lastIndex, match.index);
+    lastIndex = tagRegex.lastIndex;
+
+    const isClosing = match[0][1] === '/';
+    const name = match[1].toLowerCase();
+
+    if (name === 'reset'){
+      if (!isClosing){
+        stack.push(state);
+        state = { color: null, bold: false, italic: false, underline: false, strikethrough: false, obfuscated: false };
+      } else if (stack.length){
+        state = stack.pop();
+      } else {
+        continue;
+      }
+      emitSync();
+      continue;
+    }
+
+    if (name === 'color'){
+      if (!isClosing){
+        const hexMatch = match[2].match(/#?([0-9a-fA-F]{6})\b/);
+        if (!hexMatch){
+          out += match[0];
+          continue;
+        }
+        stack.push(state);
+        state = { ...state, color: '#' + hexMatch[1].toLowerCase() };
+      } else if (stack.length){
+        state = stack.pop();
+      } else {
+        continue;
+      }
+      emitSync();
+      continue;
+    }
+
+    if (TAG_COLOR_CODES[name]){
+      if (!isClosing){
+        stack.push(state);
+        state = { ...state, color: TAG_COLOR_CODES[name] };
+      } else if (stack.length){
+        state = stack.pop();
+      } else {
+        continue;
+      }
+      emitSync();
+      continue;
+    }
+
+    const flagName = FORMAT_FLAG_ALIASES[name] || name;
+    if (FORMAT_FLAG_CODES[flagName]){
+      const flag = flagName;
+      if (!isClosing){
+        stack.push(state);
+        state = { ...state, [flag]: true };
+      } else if (stack.length){
+        state = stack.pop();
+      } else {
+        continue;
+      }
+      emitSync();
+      continue;
+    }
+
+    out += match[0];
+  }
+  out += text.slice(lastIndex);
+  return out;
+}
 
 function hexToRgb(hex){
   hex = hex.replace('#','');
@@ -155,6 +260,12 @@ function parseFormatted(text, defaultColor){
   for (let i=0; i<text.length; i++){
     const ch = text[i];
     if (ch === '&' && i+1 < text.length){
+      if (text[i+1] === '#' && /^[0-9a-fA-F]{6}$/.test(text.slice(i+2, i+8))){
+        flush();
+        color = '#' + text.slice(i+2, i+8).toLowerCase();
+        bold=italic=underline=strikethrough=obfuscated=false;
+        i += 7; continue;
+      }
       const code = text[i+1].toLowerCase();
       if (COLOR_CODES[code]){
         flush();
@@ -279,8 +390,8 @@ const ctx = canvas.getContext('2d');
 function computeTooltipModel(){
   const config = { ...LAYOUT_CONFIG, previewZoom: getPreviewZoom() };
   const rarity = RARITIES.find(r => r.key === currentRarity);
-  const nameSegs = parseFormatted(document.getElementById('itemName').value, rarity.color);
-  let loreRaw = document.getElementById('loreText').value.split('\n');
+  const nameSegs = parseFormatted(convertTagsToCodes(document.getElementById('itemName').value), rarity.color);
+  let loreRaw = document.getElementById('loreText').value.split('\n').map(convertTagsToCodes);
   const autoWrap = document.getElementById('autoWrapLore')?.checked;
   if (autoWrap) {
     loreRaw = loreRaw.flatMap(line => wrapLine(line, 35));
@@ -447,27 +558,78 @@ configInputs.forEach(({ id, key, type }) => {
 const cogBtn = document.getElementById('cogBtn');
 const configPanel = document.getElementById('configPanel');
 const closeConfigBtn = document.getElementById('closeConfigBtn');
+const colorsBtn = document.getElementById('colorsBtn');
+const colorsPanel = document.getElementById('colorsPanel');
+const closeColorsBtn = document.getElementById('closeColorsBtn');
 
 if (cogBtn && configPanel) {
   cogBtn.addEventListener('click', (e) => {
     e.stopPropagation();
+    if (colorsPanel) colorsPanel.classList.remove('show');
     configPanel.classList.toggle('show');
   });
 
   configPanel.addEventListener('click', (e) => {
     e.stopPropagation();
   });
+}
 
-  document.addEventListener('click', () => {
-    configPanel.classList.remove('show');
+if (colorsBtn && colorsPanel) {
+  colorsBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (configPanel) configPanel.classList.remove('show');
+    colorsPanel.classList.toggle('show');
+  });
+
+  colorsPanel.addEventListener('click', (e) => {
+    e.stopPropagation();
   });
 }
+
+document.addEventListener('click', () => {
+  if (configPanel) configPanel.classList.remove('show');
+  if (colorsPanel) colorsPanel.classList.remove('show');
+});
 
 if (closeConfigBtn && configPanel) {
   closeConfigBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     configPanel.classList.remove('show');
   });
+}
+
+if (closeColorsBtn && colorsPanel) {
+  closeColorsBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    colorsPanel.classList.remove('show');
+  });
+}
+
+const obfuscatedPreviewEl = document.getElementById('obfuscatedPreview');
+if (obfuscatedPreviewEl && colorsPanel) {
+  const obfPreviewOriginalText = obfuscatedPreviewEl.textContent;
+  let obfPreviewInterval = null;
+  let obfPreviewTick = 0;
+
+  const startObfPreview = () => {
+    if (obfPreviewInterval) return;
+    obfPreviewInterval = setInterval(() => {
+      obfPreviewTick++;
+      obfuscatedPreviewEl.textContent = obfuscate(obfPreviewOriginalText, obfPreviewTick);
+    }, 50);
+  };
+  const stopObfPreview = () => {
+    if (obfPreviewInterval) {
+      clearInterval(obfPreviewInterval);
+      obfPreviewInterval = null;
+    }
+    obfuscatedPreviewEl.textContent = obfPreviewOriginalText;
+  };
+
+  new MutationObserver(() => {
+    if (colorsPanel.classList.contains('show')) startObfPreview();
+    else stopObfPreview();
+  }).observe(colorsPanel, { attributes: true, attributeFilter: ['class'] });
 }
 
 const resetConfigBtn = document.getElementById('resetConfigBtn');
@@ -753,7 +915,7 @@ function wrapLine(line, maxLen = 35) {
   let currentLine = '';
   let currentLineCleanLength = 0;
   
-  const formatRegex = /&[0-9a-fk-or]/gi;
+  const formatRegex = /&(?:#[0-9a-f]{6}|[0-9a-fk-or])/gi;
   let activeFormatting = '';
 
   for (let i = 0; i < words.length; i++) {
@@ -766,7 +928,7 @@ function wrapLine(line, maxLen = 35) {
         if (code.toLowerCase() === '&r') {
           activeFormatting = ''; 
         } else {
-          if (/[0-9a-f]/i.test(code[1])) {
+          if (code[1] === '#' || /[0-9a-f]/i.test(code[1])) {
             activeFormatting = code;
           } else {
             activeFormatting += code;

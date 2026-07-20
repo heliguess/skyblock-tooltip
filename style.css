@@ -103,6 +103,10 @@ html, body {
   display: block;
 }
 
+.colors-btn {
+  top: 44px;
+}
+
 .config-panel {
   position: absolute;
   top: 0;
@@ -121,6 +125,60 @@ html, body {
 
 .config-panel.show {
   display: flex;
+}
+
+.colors-panel {
+  top: 44px;
+  width: 260px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.colors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.color-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.color-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.color-tag {
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.color-name {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-left: auto;
+  text-align: right;
+}
+
+.colors-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.colors-hint code {
+  color: var(--accent);
+  font-size: 11px;
+  font-family: 'Minecraft';
 }
 
 .config-grid {
