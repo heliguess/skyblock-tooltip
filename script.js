@@ -144,13 +144,13 @@ RARITIES.forEach(r => {
 let currentRarity = 'RARE';
 
 const DEFAULT_LAYOUT_CONFIG = {
-  fontSize: 12,
-  lineHeight: 12,
+  fontSize: 11,
+  lineHeight: 11,
   fontFamily: 'Minecraft',
   sourceBorderPx: 25,
   borderSize: 25,
   textGap: 2,
-  titleGap: 3,
+  titleGap: 2,
   padding: 12,
 };
 
