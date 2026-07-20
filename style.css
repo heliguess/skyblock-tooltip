@@ -149,7 +149,6 @@ html, body {
 .color-swatch {
   width: 16px;
   height: 16px;
-  border-radius: 3px;
   border: 1px solid var(--border);
   flex-shrink: 0;
 }
