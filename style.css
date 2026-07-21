@@ -615,3 +615,122 @@ textarea {
 .btn-secondary:hover {
   background: rgba(255, 255, 255, 0.05);
 }
+
+.open-glyph-panel-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: background 0.15s ease;
+}
+
+.open-glyph-panel-btn:hover {
+  background: var(--surface0);
+  text-decoration: underline;
+}
+
+.glyph-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.glyph-menu-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.glyph-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.glyph-tab {
+  flex: 1;
+  background: var(--crust);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 6px;
+  font-size: 11px;
+  font-weight: bold;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.glyph-tab:hover {
+  border-color: var(--text-dim);
+  color: var(--text);
+}
+
+.glyph-tab.active {
+  background: var(--surface0);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.glyph-search-input {
+  width: 100%;
+  background: var(--crust);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.glyph-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(32px, 1fr));
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.glyph-grid::-webkit-scrollbar {
+  width: 6px;
+}
+
+.glyph-grid::-webkit-scrollbar-thumb {
+  background: var(--surface2);
+  border-radius: 3px;
+}
+
+.glyph-btn {
+  background: var(--crust);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+
+.glyph-btn:hover {
+  background: var(--surface0);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.glyph-btn:active {
+  transform: translateY(0);
+}
+
+.glyph-canvas {
+  width: 20px;
+  height: 20px;
+  image-rendering: pixelated;
+  pointer-events: none;
+}

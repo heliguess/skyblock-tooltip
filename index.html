@@ -139,11 +139,11 @@
         <label class="field-label">Lore</label>
         <textarea id="loreText">&7Damage: &c+100
 &7Strength: &c+100
-&7Gemstones: &r[✎]
+&7Gemstones: &8[&7&8]
 
 &6Ability: Instant Transmission &e&lRIGHT CLICK
 &7Teleport &a8 blocks &7ahead of you and
-&7gain &a+50&f ✦ Speed &7for &a3 seconds&7.
+&7gain &a+50&f  Speed &7for &a3 seconds&7.
 &8Mana Cost: &350
 
 &8This item can be reforged!</textarea>
@@ -167,6 +167,22 @@
         Import from Item Stack
       </button>
     </fieldset>
+
+<fieldset class="glyph-fieldset" id="glyphPickerFieldset">
+  <legend>Glyphs / Symbols</legend>
+  <div class="glyph-menu-controls">
+    <div class="glyph-tabs" id="glyphTabs">
+      <button type="button" class="glyph-tab" data-category="all">All</button>
+      <button type="button" class="glyph-tab active" data-category="stats">Stats</button>
+      <button type="button" class="glyph-tab" data-category="skills">Skills</button>
+      <button type="button" class="glyph-tab" data-category="name">Name</button>
+      <button type="button" class="glyph-tab" data-category="mobs">Mobs</button>
+      <button type="button" class="glyph-tab" data-category="symbols">Symbols</button>
+    </div>
+    <input type="text" id="glyphSearchInput" class="glyph-search-input" placeholder="Search glyphs..." />
+  </div>
+  <div class="glyph-grid" id="glyphGrid"></div>
+</fieldset>
 
     <fieldset>
       <legend>Rarity</legend>
@@ -224,6 +240,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/1.0.11/pako.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/photopea/UPNG.js/UPNG.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/webpxmux/dist/webpxmux.js"></script>
-<script src="script.js"></script>
+<script src="script.js" type="module"></script>
 </body>
 </html>

@@ -1,3 +1,12 @@
+import { FontMappings, ImageDimensions, getUnifontGlyph } from "./hypixel_font.js";
+
+function getGlyphMapping(ch) {
+  if (ch in FontMappings) return FontMappings[ch];
+  const glyph = getUnifontGlyph(ch);
+  if (glyph) FontMappings[ch] = glyph;
+  return glyph;
+}
+
 const COLOR_CODES = {
   '0':'#000000','1':'#353FCE','2':'#00AA00','3':'#00aaaa',
   '4':'#D13228','5':'#A335EE','6':'#FF9000','7':'#A8BFD2',
@@ -142,6 +151,8 @@ RARITIES.forEach(r => {
 });
 
 let currentRarity = 'RARE';
+
+const GLYPH_ATLAS_BASE_SIZE = 11;
 
 const DEFAULT_LAYOUT_CONFIG = {
   fontSize: 11,
@@ -326,17 +337,21 @@ function fontFor(seg, config){
 
 const BOLD_LETTER_SPACING = 0.9; 
 
-function layoutSegment(ctx, display, bold){
-  if (!bold) return { chars: null, width: ctx.measureText(display).width };
+function layoutSegment(ctx, display, bold, config) {
+  const glyphScale = config.fontSize / GLYPH_ATLAS_BASE_SIZE;
+  const offset = (bold ? BOLD_LETTER_SPACING : 0) * glyphScale;
   const chars = [];
   let w = 0;
   for (const ch of display){
-    const cw = ctx.measureText(ch).width;
+    const mapping = getGlyphMapping(ch);
+    const nativeWidth = mapping ? (mapping.advanceWidth ?? mapping.pixelWidth) : undefined;
+    const cw = nativeWidth !== undefined ? nativeWidth * glyphScale : ctx.measureText(ch).width;
+    const extraSpacing = mapping ? (mapping.spacing ?? 0) * glyphScale : 0;
     chars.push({ ch, x: w, w: cw });
-    w += cw + BOLD_LETTER_SPACING;
+    w += cw + extraSpacing + offset;
   }
-  if (chars.length) w -= BOLD_LETTER_SPACING; 
-  w += 1; 
+  if (chars.length) w -= offset; 
+  w += (bold ? 1 : 0) * glyphScale; 
   return { chars, width: w };
 }
 
@@ -346,29 +361,106 @@ function measureLine(ctx, segments, config, lineIdx = 0){
     ctx.font = fontFor(seg, config);
     const seed = lineIdx * 1000 + segIdx;
     const display = seg.obfuscated ? obfuscate(seg.text, seed) : seg.text;
-    w += layoutSegment(ctx, display, seg.bold).width;
+    w += layoutSegment(ctx, display, seg.bold, config).width;
   });
   return w;
 }
 
-function drawLine(ctx, segments, x, y, shadowOnly, config, lineIdx = 0){
+const BitmapCache = {};
+
+async function getOrCreateBitmap(image) {
+  if (image in BitmapCache) {
+    return BitmapCache[image];
+  }
+
+  const bitmap = await window.createImageBitmap(await (await fetch(image)).blob())
+  BitmapCache[image] = bitmap;
+  if (!ImageDimensions[image]) {
+    ImageDimensions[image] = { width: bitmap.width, height: bitmap.height };
+  }
+  return bitmap;
+}
+
+const colorize = (image, r, g, b) => {
+  const offscreen = new OffscreenCanvas(image.width, image.height);
+  const ctx = offscreen.getContext("2d");
+
+  ctx.drawImage(image, 0, 0);
+
+  const imageData = ctx.getImageData(0, 0, image.width, image.height);
+
+  for (let i = 0; i < imageData.data.length; i += 4) {
+    imageData.data[i + 0] *= r;
+    imageData.data[i + 1] *= g;
+    imageData.data[i + 2] *= b;
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+
+  return offscreen;
+}
+
+async function drawChar(ctx, ch, x, y, config) {
+  const fontMapping = getGlyphMapping(ch);
+  if (fontMapping) {
+    const glyphScale = config.fontSize / GLYPH_ATLAS_BASE_SIZE;
+    const color = hexToRgb(ctx.fillStyle);
+    const bitmap = colorize(await getOrCreateBitmap(fontMapping.image), color.r / 255., color.g / 255., color.b / 255.);
+    const width = bitmap.width;
+    const height = bitmap.height;
+
+    const sx = Math.floor(fontMapping.u0 * width);
+    const sy = Math.floor(fontMapping.v0 * height);
+    const sw = Math.max(1, Math.round((fontMapping.u1 - fontMapping.u0) * width));
+    const sh = Math.max(1, Math.round((fontMapping.v1 - fontMapping.v0) * height));
+
+    const tile = (typeof OffscreenCanvas !== 'undefined')
+      ? new OffscreenCanvas(sw, sh)
+      : document.createElement('canvas');
+    if (tile instanceof HTMLCanvasElement) {
+      tile.width = sw;
+      tile.height = sh;
+    }
+    const tileCtx = tile.getContext('2d');
+    tileCtx.imageSmoothingEnabled = false;
+    tileCtx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, sw, sh);
+
+    const renderWidth = (fontMapping.pixelWidth ?? sw) * glyphScale;
+    const renderHeight = (fontMapping.pixelHeight ?? fontMapping.height ?? sh) * glyphScale;
+    const xOffset = (fontMapping.xOffset ?? 0) * glyphScale;
+    const yOffset = (fontMapping.yOffset ?? 0) * glyphScale;
+    const cellHeight = (fontMapping.height ?? 0) * glyphScale;
+
+    const dx = x + xOffset;
+    const dy = y + 2 * glyphScale + yOffset + Math.max(0, cellHeight - renderHeight);
+
+    ctx.drawImage(
+      tile, 
+      0, 0, sw, sh, 
+      dx, dy, renderWidth, renderHeight
+    );
+    return;
+  }
+  
+  ctx.fillText(ch, x, y);
+}
+
+async function drawLine(ctx, segments, x, y, shadowOnly, config, lineIdx = 0){
   let cx = x;
-  segments.forEach((seg, segIdx) => {
+  for (const [segIdx, seg] of segments.entries()) {
     ctx.font = fontFor(seg, config);
     const seed = lineIdx * 1000 + segIdx;
     const display = seg.obfuscated ? obfuscate(seg.text, seed) : seg.text;
-    const layout = layoutSegment(ctx, display, seg.bold);
+    const layout = layoutSegment(ctx, display, seg.bold, config);
     ctx.fillStyle = shadowOnly ? shadowColor(seg.color) : seg.color;
     const dx = shadowOnly ? cx + 1 : cx;
     const dy = shadowOnly ? y + 1 : y;
 
-    if (!seg.bold){
-      ctx.fillText(display, dx, dy);
-    } else {
-      layout.chars.forEach(({ ch, x: chx }) => {
-        ctx.fillText(ch, dx + chx, dy);
-        ctx.fillText(ch, dx + chx + 1, dy); 
-      });
+    for (const { ch, x: chx } of layout.chars) {
+      await drawChar(ctx, ch, dx + chx, dy, config);
+      if (seg.bold) {
+        await drawChar(ctx, ch, dx + chx + 1, dy, config);
+      }
     }
 
     if (seg.underline || seg.strikethrough){
@@ -381,11 +473,12 @@ function drawLine(ctx, segments, x, y, shadowOnly, config, lineIdx = 0){
       ctx.stroke();
     }
     cx += layout.width;
-  });
+  }
 }
 
 const canvas = document.getElementById('tooltipCanvas');
 const ctx = canvas.getContext('2d');
+canvas.style.imageRendering = 'pixelated';
 
 function computeTooltipModel(){
   const config = { ...LAYOUT_CONFIG, previewZoom: getPreviewZoom() };
@@ -438,7 +531,7 @@ function computeTooltipModel(){
   return { config, rarity, allLines, cw, ch, vOffset, contentHeight };
 }
 
-function drawTooltip(targetCtx, model, scale){
+async function drawTooltip(targetCtx, model, scale){
   const { config, rarity, allLines, cw, ch, vOffset, contentHeight } = model;
 
   targetCtx.setTransform(scale, 0, 0, scale, 0, 0);
@@ -461,19 +554,40 @@ function drawTooltip(targetCtx, model, scale){
   targetCtx.textBaseline = 'top';
   
   let y = config.padding - vOffset;
-  allLines.forEach((segs, idx) => {
-    drawLine(targetCtx, segs, config.padding, y, true, config, idx);
-    drawLine(targetCtx, segs, config.padding, y, false, config, idx);
+  for (let idx = 0; idx < allLines.length; idx++) {
+    const segs = allLines[idx];
+    await drawLine(targetCtx, segs, config.padding, y, true, config, idx);
+    await drawLine(targetCtx, segs, config.padding, y, false, config, idx);
     y += config.lineHeight;
     
     if (idx === 0 && allLines.length > 1) {
       y += config.titleGap;
     }
-  });
+  }
   targetCtx.restore();
 }
-
 let lastCw = 0, lastCh = 0, lastScale = 0, lastZoom = 0;
+
+let previewRenderInFlight = false;
+let previewRenderQueued = null;
+
+async function runPreviewRender(model, previewScale) {
+  if (previewRenderInFlight) {
+    previewRenderQueued = { model, previewScale };
+    return;
+  }
+  previewRenderInFlight = true;
+  try {
+    await drawTooltip(ctx, model, previewScale);
+  } finally {
+    previewRenderInFlight = false;
+  }
+  if (previewRenderQueued) {
+    const next = previewRenderQueued;
+    previewRenderQueued = null;
+    runPreviewRender(next.model, next.previewScale);
+  }
+}
 
 function renderWithModel(model){
   const { config, cw, ch } = model;
@@ -499,7 +613,7 @@ function renderWithModel(model){
     lastZoom = config.previewZoom;
   }
 
-  drawTooltip(ctx, model, previewScale);
+  runPreviewRender(model, previewScale);
 }
 
 function updateAnimationButtonsVisibility(model) {
@@ -663,7 +777,7 @@ wireInputIds.forEach(id => {
   }
 });
 
-document.getElementById('downloadBtn').addEventListener('click', () => {
+document.getElementById('downloadBtn').addEventListener('click', async () => {
   const model = computeTooltipModel();
   const { cw, ch } = model;
   const pixelScale = parseInt(document.getElementById('pixelScale').value, 10);
@@ -672,7 +786,8 @@ document.getElementById('downloadBtn').addEventListener('click', () => {
   exportCanvas.width = cw * pixelScale;
   exportCanvas.height = ch * pixelScale;
   const exportCtx = exportCanvas.getContext('2d');
-  drawTooltip(exportCtx, model, pixelScale);
+
+  await drawTooltip(exportCtx, model, pixelScale);
 
   const link = document.createElement('a');
   const timestamp = Date.now();
@@ -681,7 +796,7 @@ document.getElementById('downloadBtn').addEventListener('click', () => {
   link.click();
 });
 
-document.getElementById('downloadStaticWebpBtn').addEventListener('click', () => {
+document.getElementById('downloadStaticWebpBtn').addEventListener('click', async () => {
   const model = computeTooltipModel();
   const { cw, ch } = model;
   const pixelScale = parseInt(document.getElementById('pixelScale').value, 10);
@@ -690,7 +805,7 @@ document.getElementById('downloadStaticWebpBtn').addEventListener('click', () =>
   exportCanvas.width = cw * pixelScale;
   exportCanvas.height = ch * pixelScale;
   const exportCtx = exportCanvas.getContext('2d');
-  drawTooltip(exportCtx, model, pixelScale);
+  await drawTooltip(exportCtx, model, pixelScale);
 
   exportCanvas.toBlob((blob) => {
     if (!blob) {
@@ -705,7 +820,7 @@ document.getElementById('downloadStaticWebpBtn').addEventListener('click', () =>
   }, 'image/webp', 0.92);
 });
 
-document.getElementById('downloadGifBtn').addEventListener('click', () => {
+document.getElementById('downloadGifBtn').addEventListener('click', async () => {
   const btn = document.getElementById('downloadGifBtn');
   const originalText = btn.textContent;
   btn.textContent = 'Encoding...';
@@ -730,7 +845,7 @@ document.getElementById('downloadGifBtn').addEventListener('click', () => {
   for (let f = 0; f < numFrames; f++) {
     obfuscationTick++;
     tempCtx.clearRect(0, 0, width, height);
-    drawTooltip(tempCtx, model, pixelScale);
+    await drawTooltip(tempCtx, model, pixelScale);
     frames.push(tempCanvas.toDataURL('image/png'));
   }
 
@@ -759,13 +874,13 @@ document.getElementById('downloadGifBtn').addEventListener('click', () => {
   });
 });
 
-document.getElementById('downloadApngBtn').addEventListener('click', () => {
+document.getElementById('downloadApngBtn').addEventListener('click', async () => {
   const btn = document.getElementById('downloadApngBtn');
   const originalText = btn.textContent;
   btn.textContent = 'Encoding APNG...';
   btn.disabled = true;
 
-  setTimeout(() => {
+  setTimeout( async () => {
     try {
       const model = computeTooltipModel();
       const { cw, ch } = model;
@@ -787,10 +902,9 @@ document.getElementById('downloadApngBtn').addEventListener('click', () => {
       for (let f = 0; f < numFrames; f++) {
         obfuscationTick++;
         tempCtx.clearRect(0, 0, width, height);
-        drawTooltip(tempCtx, model, pixelScale);
+        await drawTooltip(tempCtx, model, pixelScale);
         
         const imgData = tempCtx.getImageData(0, 0, width, height);
-        
         const bufferCopy = new Uint8Array(imgData.data).buffer;
         frames.push(bufferCopy);
         delays.push(50);
@@ -802,7 +916,6 @@ document.getElementById('downloadApngBtn').addEventListener('click', () => {
       const blends = new Array(numFrames).fill(0); 
 
       const apngBuffer = UPNG.encodeLL(frames, width, height, 3, 1, 8, delays, disps, blends, 0);
-      
       const blob = new Blob([apngBuffer], { type: 'image/png' });
 
       const link = document.createElement('a');
@@ -865,7 +978,7 @@ document.getElementById('downloadWebpBtn').addEventListener('click', async () =>
     for (let f = 0; f < numFrames; f++) {
       obfuscationTick++;
       tempCtx.clearRect(0, 0, width, height);
-      drawTooltip(tempCtx, model, pixelScale);
+      await drawTooltip(tempCtx, model, pixelScale);
 
       const imgData = tempCtx.getImageData(0, 0, width, height);
       frames.push({
@@ -1008,7 +1121,6 @@ function animate(timestamp) {
     renderWithModel(model);
   }
 }
-
 
 function flattenComponent(comp, parentState = { color: null, bold: false, italic: false, underlined: false, strikethrough: false, obfuscated: false }) {
   if (comp === null || comp === undefined) return [];
@@ -1344,9 +1456,292 @@ if (confirmImportBtn && importJsonTextarea) {
   });
 }
 
+const GLYPH_DATA = [
+  { char: '', name: 'Health', category: 'stats' },
+  { char: '', name: 'Defense', category: 'stats' },
+  { char: '', name: 'Strength', category: 'stats' },
+  { char: '', name: 'Speed', category: 'stats' },
+  { char: '', name: 'Crit Chance', category: 'stats' },
+  { char: '', name: 'Crit Damage', category: 'stats'},
+  { char: '', name: 'Intelligence', category: 'stats' },
+  { char: '', name: 'Magic Find', category: 'stats' },
+  { char: '', name: 'Pet Luck', category: 'stats' },
+  { char: '', name: 'Ability Damage', category: 'stats' },
+  { char: '', name: 'Bonus Attack Speed', category: 'stats' },
+  { char: '', name: 'Swing Range', category: 'stats' },
+  { char: '', name: 'Ferocity', category: 'stats' },
+  { char: '', name: 'Health Regen', category: 'stats' },
+  { char: '', name: 'Vitality', category: 'stats' },
+  { char: '', name: 'Mending', category: 'stats' },
+  { char: '', name: 'True Defense', category: 'stats' },
+  { char: '⸎', name: 'Soulflow', category: 'stats' },
+  { char: '', name: 'Overflow Mana', category: 'stats' },
+  { char: '', name: 'Mining Speed', category: 'stats' },
+  { char: '', name: 'Mining / Mining Fortune', category: 'stats' },
+  { char: '', name: 'Mining Spread', category: 'stats' },
+  { char: '', name: 'Pristine', category: 'stats' },
+  { char: '', name: 'Gemstone Spread', category: 'stats' },
+  { char: '', name: 'Breaking Power', category: 'stats' },
+  { char: '', name: 'Cold / Cold Resistance', category: 'stats' },
+  { char: '', name: 'Heat / Heat Resistance', category: 'stats' },
+  { char: '', name: 'Fuel', category: 'stats' },
+  { char: '', name: 'Fishing Speed', category: 'stats' },
+  { char: '', name: 'Sea Creature Chance', category: 'stats' },
+  { char: '', name: 'Double Hook Chance', category: 'stats' },
+  { char: '', name: 'Treasure Chance', category: 'stats' },
+  { char: '', name: 'Trophy Chance', category: 'stats' },
+  { char: '', name: 'Pressure Resistance', category: 'stats' },
+  { char: '', name: 'Respiration', category: 'stats' },
+  { char: '', name: 'Farming / Farming Fortune', category: 'stats' },
+  { char: '', name: 'Overbloom', category: 'stats' },
+  { char: '', name: 'Pest ', category: 'stats' },
+  { char: '', name: 'Bonus Pest Chance', category: 'stats' },
+  { char: '', name: 'Foraging / Foraging Fortune', category: 'stats' },
+  { char: '', name: 'Sweep', category: 'stats' },
+  { char: '', name: 'Rift Mana Regen', category: 'stats' },
+  { char: '', name: 'Rift Damage', category: 'stats' },
+  { char: '', name: 'Rift Health', category: 'stats' },
+  { char: '', name: 'Rift Time', category: 'stats' },
+  { char: '', name: '???', category: 'stats' },
+  { char: '', name: '???', category: 'stats' },
+  { char: '', name: '???', category: 'stats' },
+
+
+  { char: '', name: 'Combat', category: 'skills' },
+  { char: '', name: 'Farming', category: 'skills' },
+  { char: '', name: 'Fishing', category: 'skills' },
+  { char: '', name: 'Mining', category: 'skills' },
+  { char: '', name: 'Foraging', category: 'skills' },
+  { char: '', name: 'Enchanting', category: 'skills' },
+  { char: '', name: 'Alchemy', category: 'skills' },
+  { char: '', name: 'Carpentry', category: 'skills' },
+  { char: '', name: 'Runecrafting', category: 'skills' },
+  { char: '', name: 'Taming', category: 'skills' },
+  { char: '', name: 'Social', category: 'skills' },
+  { char: '', name: 'Hunting', category: 'skills' },
+
+  { char: '', name: 'Fragged', category: 'name' },
+  { char: '✪', name: 'Star', category: 'name' },
+  { char: '➊', name: 'Master Star 1', category: 'name' },
+  { char: '➋', name: 'Master Star 2', category: 'name' },
+  { char: '➌', name: 'Master Star 3', category: 'name' },
+  { char: '➍', name: 'Master Star 4', category: 'name' },
+  { char: '➎', name: 'Master Star 5', category: 'name' },
+  { char: '✿', name: 'Dye Symbol', category: 'symbols' },
+
+  { char: '', name: 'Airborne', category: 'mobs' },
+  { char: '', name: 'Animal', category: 'mobs' },
+  { char: '', name: 'Aquatic', category: 'mobs' },
+  { char: '', name: 'Arcane', category: 'mobs' },
+  { char: '', name: 'Arthropod', category: 'mobs' },
+  { char: '', name: 'Construct', category: 'mobs' },
+  { char: '', name: 'Cubic', category: 'mobs' },
+  { char: '', name: 'Elusive', category: 'mobs' },
+  { char: '', name: 'Ender', category: 'mobs' },
+  { char: '', name: 'Frozen', category: 'mobs' },
+  { char: '', name: 'Glacial', category: 'mobs' },
+  { char: '', name: 'Humanoid', category: 'mobs' },
+  { char: '', name: 'Infernal', category: 'mobs' },
+  { char: '', name: 'Magmatic', category: 'mobs' },
+  { char: '', name: 'Mythological', category: 'mobs' },
+  { char: '', name: 'Pest', category: 'mobs' },
+  { char: '', name: 'Shielded', category: 'mobs' },
+  { char: '', name: 'Skeletal', category: 'mobs' },
+  { char: '', name: 'Spooky', category: 'mobs' },
+  { char: '', name: 'Subterranean', category: 'mobs' },
+  { char: '', name: 'Undead', category: 'mobs' },
+  { char: '', name: 'Wither', category: 'mobs' },
+  { char: '', name: 'Woodland', category: 'mobs' },
+
+  { char: '', name: 'Left Arrow', category: 'symbols' },
+  { char: '', name: 'Right Arrow', category: 'symbols' },
+  { char: '', name: 'Up Arrow', category: 'symbols' },
+  { char: '', name: 'Down Arrow', category: 'symbols' },
+  { char: '✖', name: 'X', category: 'symbols' },
+  { char: '', name: 'Lock', category: 'symbols' },
+  { char: '', name: 'Location', category: 'symbols' },
+  { char: '✆', name: 'Abiphone Ring', category: 'symbols' },
+  { char: '♲', name: 'Ironman Profile', category: 'symbols' },
+  { char: 'ዞ', name: 'Hypixel Admins', category: 'symbols' },
+  { char: '◆', name: 'Rune Symbol', category: 'symbols' },
+  { char: '✿', name: 'Dye Symbol', category: 'symbols' }
+];
+
+let lastFocusedInput = null;
+
+function insertGlyphAtCursor(glyph) {
+  const target = lastFocusedInput || document.getElementById('loreText');
+  if (!target) return;
+
+  const start = target.selectionStart !== undefined ? target.selectionStart : target.value.length;
+  const end = target.selectionEnd !== undefined ? target.selectionEnd : target.value.length;
+  const val = target.value;
+
+  target.value = val.substring(0, start) + glyph + val.substring(end);
+
+  const newPos = start + glyph.length;
+  target.selectionStart = newPos;
+  target.selectionEnd = newPos;
+  target.focus();
+
+  render();
+}
+
+async function renderGlyphToCanvas(canvasEl, ch, hexColor = '#FFFFFF') {
+  if (!canvasEl) return;
+  const ctx = canvasEl.getContext('2d');
+  ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+  ctx.imageSmoothingEnabled = false;
+
+  const mapping = getGlyphMapping(ch);
+
+  if (mapping && mapping.image) {
+    try {
+      const rawBitmap = await getOrCreateBitmap(mapping.image);
+      const color = hexToRgb(hexColor);
+      const coloredCanvas = colorize(rawBitmap, color.r / 255, color.g / 255, color.b / 255);
+
+      const w = rawBitmap.width;
+      const h = rawBitmap.height;
+      const sw = (mapping.u1 - mapping.u0) * w;
+      const sh = (mapping.v1 - mapping.v0) * h;
+
+      if (sw > 0 && sh > 0) {
+        const pad = 2;
+        const availW = canvasEl.width - pad * 2;
+        const availH = canvasEl.height - pad * 2;
+        const scale = Math.min(availW / sw, availH / sh);
+        const dw = Math.max(1, Math.round(sw * scale));
+        const dh = Math.max(1, Math.round(sh * scale));
+        const dx = Math.round((canvasEl.width - dw) / 2);
+        const dy = Math.round((canvasEl.height - dh) / 2);
+
+        ctx.drawImage(
+          coloredCanvas,
+          mapping.u0 * w, mapping.v0 * h, sw, sh,
+          dx, dy, dw, dh
+        );
+        return;
+      }
+    } catch (err) {
+      console.warn(`Failed rendering glyph "${ch}":`, err);
+    }
+  }
+
+  ctx.fillStyle = hexColor;
+  ctx.font = '12px "Minecraft", monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(ch, canvasEl.width / 2, canvasEl.height / 2);
+}
+
+function createGlyphButton(item) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'glyph-btn';
+  btn.title = `${item.name} (${item.char})`;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 20;
+  canvas.height = 20;
+  canvas.className = 'glyph-canvas';
+  btn.appendChild(canvas);
+
+  renderGlyphToCanvas(canvas, item.char, item.color || '#FFFFFF');
+
+  btn.addEventListener('mousedown', (e) => e.preventDefault());
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    insertGlyphAtCursor(item.char);
+  });
+
+  return btn;
+}
+
+function getAllAvailableGlyphs() {
+  const customList = [...GLYPH_DATA];
+  const knownChars = new Set(GLYPH_DATA.map(g => g.char));
+
+  if (typeof FontMappings !== 'undefined') {
+    for (const ch of Object.keys(FontMappings)) {
+      if (!knownChars.has(ch) && ch.trim() !== '') {
+        customList.push({
+          char: ch,
+          name: `Glyph ${ch}`,
+          category: 'all',
+          color: '#FFFFFF'
+        });
+        knownChars.add(ch);
+      }
+    }
+  }
+  return customList;
+}
+
+function filterAndRenderGlyphGrid() {
+  const searchInput = document.getElementById('glyphSearchInput');
+  const search = (searchInput?.value || '').toLowerCase().trim();
+  const activeTab = document.querySelector('.glyph-tab.active')?.dataset.category || 'all';
+
+  const allGlyphs = getAllAvailableGlyphs();
+  const filtered = allGlyphs.filter(g => {
+    const matchesTab = (activeTab === 'all') || (g.category === activeTab);
+    const matchesSearch = !search || g.name.toLowerCase().includes(search) || g.char.includes(search);
+    return matchesTab && matchesSearch;
+  });
+
+  const gridEl = document.getElementById('glyphGrid');
+  if (!gridEl) return;
+  gridEl.innerHTML = '';
+
+  filtered.forEach(glyph => {
+    gridEl.appendChild(createGlyphButton(glyph));
+  });
+}
+
+function initGlyphMenu() {
+  lastFocusedInput = document.getElementById('loreText');
+
+  ['itemName', 'itemType', 'loreText'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('focus', () => { lastFocusedInput = el; });
+      el.addEventListener('click', () => { lastFocusedInput = el; });
+    }
+  });
+
+  const searchInput = document.getElementById('glyphSearchInput');
+  if (searchInput) {
+    searchInput.addEventListener('input', filterAndRenderGlyphGrid);
+  }
+
+  const tabs = document.querySelectorAll('.glyph-tab');
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      filterAndRenderGlyphGrid();
+    });
+  });
+
+  const toggleBtn = document.getElementById('openGlyphPanelBtn');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', () => {
+      const section = document.getElementById('glyphPickerFieldset');
+      if (section) {
+        section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        document.getElementById('glyphSearchInput')?.focus();
+      }
+    });
+  }
+
+  filterAndRenderGlyphGrid();
+}
+
 (async function init() {
   updateSliderDisplays();
-  populateConfigInputs()
+  populateConfigInputs();
+  initGlyphMenu();
   render();
 
   await loadRarityAssets(currentRarity);
