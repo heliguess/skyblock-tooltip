@@ -381,7 +381,19 @@ async function getOrCreateBitmap(image) {
   return bitmap;
 }
 
+const ColorizeCache = new WeakMap();
+
 const colorize = (image, r, g, b) => {
+  let cacheForImage = ColorizeCache.get(image);
+  if (!cacheForImage) {
+    cacheForImage = new Map();
+    ColorizeCache.set(image, cacheForImage);
+  }
+
+  const key = r + ',' + g + ',' + b;
+  const cached = cacheForImage.get(key);
+  if (cached) return cached;
+
   const offscreen = new OffscreenCanvas(image.width, image.height);
   const ctx = offscreen.getContext("2d");
 
@@ -397,6 +409,7 @@ const colorize = (image, r, g, b) => {
 
   ctx.putImageData(imageData, 0, 0);
 
+  cacheForImage.set(key, offscreen);
   return offscreen;
 }
 
@@ -414,17 +427,6 @@ async function drawChar(ctx, ch, x, y, config) {
     const sw = Math.max(1, Math.round((fontMapping.u1 - fontMapping.u0) * width));
     const sh = Math.max(1, Math.round((fontMapping.v1 - fontMapping.v0) * height));
 
-    const tile = (typeof OffscreenCanvas !== 'undefined')
-      ? new OffscreenCanvas(sw, sh)
-      : document.createElement('canvas');
-    if (tile instanceof HTMLCanvasElement) {
-      tile.width = sw;
-      tile.height = sh;
-    }
-    const tileCtx = tile.getContext('2d');
-    tileCtx.imageSmoothingEnabled = false;
-    tileCtx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, sw, sh);
-
     const renderWidth = (fontMapping.pixelWidth ?? sw) * glyphScale;
     const renderHeight = (fontMapping.pixelHeight ?? fontMapping.height ?? sh) * glyphScale;
     const xOffset = (fontMapping.xOffset ?? 0) * glyphScale;
@@ -435,8 +437,8 @@ async function drawChar(ctx, ch, x, y, config) {
     const dy = y + 2 * glyphScale + yOffset + Math.max(0, cellHeight - renderHeight);
 
     ctx.drawImage(
-      tile, 
-      0, 0, sw, sh, 
+      bitmap,
+      sx, sy, sw, sh,
       dx, dy, renderWidth, renderHeight
     );
     return;
