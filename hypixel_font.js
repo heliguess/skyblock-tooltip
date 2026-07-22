@@ -272,6 +272,28 @@ export function getUnifontGlyph(char) {
 
 export const ImageDimensions = {};
 
+const PLEADING_FACE_CODEPOINT = 0x1f97a;
+const PLEADING_FACE_URL = `https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/72x72/${PLEADING_FACE_CODEPOINT.toString(16)}.png`;
+
+let pleadingFaceGlyph = null;
+
+export function getEmojiGlyph(char) {
+  if (char !== String.fromCodePoint(PLEADING_FACE_CODEPOINT)) return null;
+  if (pleadingFaceGlyph) return pleadingFaceGlyph;
+
+  pleadingFaceGlyph = {
+    image: PLEADING_FACE_URL,
+    u0: 0, u1: 1, v0: 0, v1: 1,
+    height: 8,
+    ascent: 7,
+    pixelWidth: 9,
+    pixelHeight: 9,
+    yOffset: 0,
+    tint: false,
+  };
+  return pleadingFaceGlyph;
+}
+
 async function preloadImageDimensions() {
   const images = [...new Set(Object.values(FontMappings).map((m) => m.image))];
 

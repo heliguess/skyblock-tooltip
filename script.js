@@ -1,8 +1,8 @@
-import { FontMappings, ImageDimensions, getUnifontGlyph } from "./hypixel_font.js";
+import { FontMappings, ImageDimensions, getUnifontGlyph, getEmojiGlyph } from "./hypixel_font.js";
 
 function getGlyphMapping(ch) {
   if (ch in FontMappings) return FontMappings[ch];
-  const glyph = getUnifontGlyph(ch);
+  const glyph = getEmojiGlyph(ch) ?? getUnifontGlyph(ch);
   if (glyph) FontMappings[ch] = glyph;
   return glyph;
 }
@@ -414,12 +414,17 @@ const colorize = (image, r, g, b) => {
   return offscreen;
 }
 
-async function drawChar(ctx, ch, x, y, config) {
+async function drawChar(ctx, ch, x, y, config, shadowOnly) {
   const fontMapping = getGlyphMapping(ch);
   if (fontMapping) {
+    if (shadowOnly && fontMapping.tint === false) return;
     const glyphScale = config.fontSize / GLYPH_ATLAS_BASE_SIZE;
-    const color = hexToRgb(ctx.fillStyle);
-    const bitmap = colorize(await getOrCreateBitmap(fontMapping.image), color.r / 255., color.g / 255., color.b / 255.);
+    const rawBitmap = await getOrCreateBitmap(fontMapping.image);
+    let bitmap = rawBitmap;
+    if (fontMapping.tint !== false) {
+      const color = hexToRgb(ctx.fillStyle);
+      bitmap = colorize(rawBitmap, color.r / 255., color.g / 255., color.b / 255.);
+    }
     const width = bitmap.width;
     const height = bitmap.height;
 
@@ -481,9 +486,9 @@ async function drawLine(ctx, segments, x, y, shadowOnly, config, lineIdx = 0){
     const dy = shadowOnly ? y + 1 : y;
 
     for (const { ch, x: chx } of layout.chars) {
-      await drawChar(ctx, ch, dx + chx, dy, config);
+      await drawChar(ctx, ch, dx + chx, dy, config, shadowOnly);
       if (seg.bold) {
-        await drawChar(ctx, ch, dx + chx + 1, dy, config);
+        await drawChar(ctx, ch, dx + chx + 1, dy, config, shadowOnly);
       }
     }
 
@@ -1588,7 +1593,8 @@ const GLYPH_DATA = [
   { char: '♲', name: 'Ironman Profile', category: 'symbols' },
   { char: 'ዞ', name: 'Hypixel Admins', category: 'symbols' },
   { char: '◆', name: 'Rune Symbol', category: 'symbols' },
-  { char: '✿', name: 'Dye Symbol', category: 'symbols' }
+  { char: '✿', name: 'Dye Symbol', category: 'symbols' },
+  { char: '🥺', name: 'Plead', category: 'symbols' }
 ];
 
 let lastFocusedInput = null;
