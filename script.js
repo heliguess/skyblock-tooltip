@@ -382,6 +382,7 @@ async function getOrCreateBitmap(image) {
 }
 
 const ColorizeCache = new WeakMap();
+const GlyphTileCache = new WeakMap();
 
 const colorize = (image, r, g, b) => {
   let cacheForImage = ColorizeCache.get(image);
@@ -436,9 +437,30 @@ async function drawChar(ctx, ch, x, y, config) {
     const dx = x + xOffset;
     const dy = y + 2 * glyphScale + yOffset + Math.max(0, cellHeight - renderHeight);
 
+    let tileCacheForBitmap = GlyphTileCache.get(bitmap);
+    if (!tileCacheForBitmap) {
+      tileCacheForBitmap = new Map();
+      GlyphTileCache.set(bitmap, tileCacheForBitmap);
+    }
+    const tileKey = sx + ',' + sy + ',' + sw + ',' + sh;
+    let tile = tileCacheForBitmap.get(tileKey);
+    if (!tile) {
+      tile = (typeof OffscreenCanvas !== 'undefined')
+        ? new OffscreenCanvas(sw, sh)
+        : document.createElement('canvas');
+      if (tile instanceof HTMLCanvasElement) {
+        tile.width = sw;
+        tile.height = sh;
+      }
+      const tileCtx = tile.getContext('2d');
+      tileCtx.imageSmoothingEnabled = false;
+      tileCtx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, sw, sh);
+      tileCacheForBitmap.set(tileKey, tile);
+    }
+
     ctx.drawImage(
-      bitmap,
-      sx, sy, sw, sh,
+      tile,
+      0, 0, sw, sh,
       dx, dy, renderWidth, renderHeight
     );
     return;
