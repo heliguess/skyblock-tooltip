@@ -8,7 +8,7 @@ function getGlyphMapping(ch) {
 }
 
 const COLOR_CODES = {
-  '0':'#000000','1':'#353FCE','2':'#00AA00','3':'#00aaaa',
+  '0':'#000000','1':'#353FCE','2':'#00AA00','3':'#00AAAA',
   '4':'#D13228','5':'#A335EE','6':'#FF9000','7':'#A8BFD2',
   '8':'#707592','9':'#459bff','a':'#55FF55','b':'#55FFFF',
   'c':'#FF5555','d':'#FF55FF','e':'#FFDE2F','f':'#FFFFFF'
@@ -1386,12 +1386,12 @@ function importFromJson(jsonString) {
         detectedRarityKey = matchedRarity.key;
         
         const idx = cleanLine.indexOf(matchedRarity.label);
-        let typePart = cleanLine.substring(idx + matchedRarity.label.length).trim();
+        let typePart = cleanLine.substring(idx + matchedRarity.label.length);
         
         if (isRecombobulated) {
-          typePart = typePart.replace(/\s+.$/, '').trim();
+          typePart = typePart.replace(/\s+.$/, '');
         }
-        detectedItemType = typePart;
+        detectedItemType = typePart.trim();
         
         finalLoreLines.pop();
       }
