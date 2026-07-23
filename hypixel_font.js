@@ -180,7 +180,7 @@ async function loadUnifontIndex() {
       if (sep === -1) continue;
       const codepoint = parseInt(trimmed.slice(0, sep), 16);
       const hexBits = trimmed.slice(sep + 1);
-      const width = hexBits.length === 32 ? 8 : hexBits.length === 64 ? 16 : null;
+      const width = hexBits.length === 32 ? 8 : hexBits.length === 64 ? 16 : hexBits.length === 128 ? 32 : null;
       if (!width || Number.isNaN(codepoint)) continue;
       index.set(codepoint, { width, hexBits });
     }
@@ -202,7 +202,7 @@ function hexRowToBits(hexRow) {
 }
 
 function rasterizeUnifontGlyph({ width, hexBits }) {
-  const charsPerRow = width === 8 ? 2 : 4;
+  const charsPerRow = width / 4;
   const rows = [];
   for (let r = 0; r < 16; r++) {
     rows.push(hexRowToBits(hexBits.slice(r * charsPerRow, r * charsPerRow + charsPerRow)));
@@ -249,8 +249,8 @@ function rasterizeUnifontGlyph({ width, hexBits }) {
     u0: 0, u1: 1, v0: 0, v1: 1,
     height: 8,
     ascent: 7,
-    pixelWidth: 9,
-    pixelHeight: 9,
+    pixelWidth: renderWidth,
+    pixelHeight: 16 * displayScale,
     advanceWidth: renderWidth + spacing,
     yOffset: 0.1,
   };

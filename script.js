@@ -437,10 +437,10 @@ async function drawChar(ctx, ch, x, y, config, shadowOnly) {
     const renderHeight = (fontMapping.pixelHeight ?? fontMapping.height ?? sh) * glyphScale;
     const xOffset = (fontMapping.xOffset ?? 0) * glyphScale;
     const yOffset = (fontMapping.yOffset ?? 0) * glyphScale;
-    const cellHeight = (fontMapping.height ?? 0) * glyphScale;
+    const ascentShift = ((fontMapping.ascent ?? 7) - 7) * glyphScale;
 
     const dx = x + xOffset;
-    const dy = y + 2 * glyphScale + yOffset + Math.max(0, cellHeight - renderHeight);
+    const dy = y + 2 * glyphScale + yOffset - ascentShift;
 
     let tileCacheForBitmap = GlyphTileCache.get(bitmap);
     if (!tileCacheForBitmap) {
@@ -1527,6 +1527,7 @@ const GLYPH_DATA = [
   { char: '', name: 'Bonus Pest Chance', category: 'stats' },
   { char: '', name: 'Foraging / Foraging Fortune', category: 'stats' },
   { char: '', name: 'Sweep', category: 'stats' },
+  { char: '☯', name: 'Wisdom', category: 'stats' },
   { char: '', name: 'Rift Mana Regen', category: 'stats' },
   { char: '', name: 'Rift Damage', category: 'stats' },
   { char: '', name: 'Rift Health', category: 'stats' },
@@ -1556,7 +1557,7 @@ const GLYPH_DATA = [
   { char: '➌', name: 'Master Star 3', category: 'name' },
   { char: '➍', name: 'Master Star 4', category: 'name' },
   { char: '➎', name: 'Master Star 5', category: 'name' },
-  { char: '✿', name: 'Dye Symbol', category: 'symbols' },
+  { char: '✿', name: 'Dye Symbol', category: 'name' },
 
   { char: '', name: 'Airborne', category: 'mobs' },
   { char: '', name: 'Animal', category: 'mobs' },
@@ -1594,6 +1595,7 @@ const GLYPH_DATA = [
   { char: 'ዞ', name: 'Hypixel Admins', category: 'symbols' },
   { char: '◆', name: 'Rune Symbol', category: 'symbols' },
   { char: '✿', name: 'Dye Symbol', category: 'symbols' },
+  { char: '⦾', name: 'Power Scroll', category: 'symbols' },
   { char: '🥺', name: 'Plead', category: 'symbols' }
 ];
 
