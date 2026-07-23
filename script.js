@@ -493,7 +493,7 @@ async function drawLine(ctx, segments, x, y, shadowOnly, config, lineIdx = 0){
     }
 
     if (seg.underline || seg.strikethrough){
-      const ly = seg.underline ? y + config.fontSize*0.85 : y + config.fontSize*0.45;
+      const ly = seg.underline ? dy + config.fontSize*0.85 : dy + config.fontSize*0.45;
       ctx.strokeStyle = ctx.fillStyle;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
