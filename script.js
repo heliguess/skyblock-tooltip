@@ -1200,7 +1200,9 @@ function segmentsToAmpersandString(segments) {
   segments.forEach(seg => {
     if (!seg.text) return;
     let prefix = '';
-    if (seg.state.color && mcColorToCode[seg.state.color]) {
+    if (seg.state.color && seg.state.color.startsWith('#')) {
+      prefix += '<color ' + seg.state.color + '>';
+    } else if (seg.state.color && mcColorToCode[seg.state.color]) {
       prefix += '&' + mcColorToCode[seg.state.color];
     }
     if (seg.state.bold) prefix += '&l';
